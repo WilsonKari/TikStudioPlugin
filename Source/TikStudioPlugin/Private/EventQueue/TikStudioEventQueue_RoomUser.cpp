@@ -81,6 +81,28 @@ bool UTikStudioEventQueue::EstaEnBandaProtegida(int32 Valor, double MonotonicNow
 	return false;
 }
 
+bool UTikStudioEventQueue::ShouldSuppressDescentHysteresis(int32 Valor, int32 M_current, int32 M_last) const
+{
+	if (M_current >= M_last)
+	{
+		return false;
+	}
+
+	const int32 Step = Settings.RoomUserConfig.RoomUserMilestoneStep;
+	if (Step <= 0)
+	{
+		return false;
+	}
+
+	// Colchón geométrico derivado de MilestoneAdjacencyRadius:
+	// radius=0 → 1 media-banda (Step/2); radius=k → (k+1) medias-bandas.
+	const int32 CushionHalfSteps = FMath::Max(1, Settings.RoomUserConfig.MilestoneAdjacencyRadius + 1);
+	const int32 DescentCushionVC = CushionHalfSteps * (Step / 2);
+	const int32 DescentFloor = M_last - DescentCushionVC;
+
+	return Valor > DescentFloor;
+}
+
 void UTikStudioEventQueue::AplicarPoliticaAdyacencia(int32 MilestoneRef)
 {
 	// Política de adyacencia: conserva cooldowns a ≤N pasos del milestone de referencia
@@ -167,6 +189,7 @@ void UTikStudioEventQueue::EnqueueRoomUserEvent(const FTSE_RoomUserIn& Data)
 			RoomUserState.bMilestoneInitialized = false;
 			RoomUserState.v_prev = 0;
 			RoomUserState.M_last = 0;
+			RoomUserState.M_last_committed = 0;
 			RoomUserState.LastKnownStep = 0;
 			
 			// El siguiente bloque de código reinicializará con el nuevo Step
@@ -179,11 +202,12 @@ void UTikStudioEventQueue::EnqueueRoomUserEvent(const FTSE_RoomUserIn& Data)
 		if (!RoomUserState.bMilestoneInitialized)
 		{
 			RoomUserState.M_last = (FMath::Max(0, v_n) / Step) * Step;
+			RoomUserState.M_last_committed = RoomUserState.M_last;
 			RoomUserState.v_prev = FMath::Max(0, v_n);
 			RoomUserState.LastKnownStep = Step; // Fijar Step usado para esta sesión
 			RoomUserState.bMilestoneInitialized = true;
-			UE_LOG(LogTemp, Log, TEXT("[EventQueue] RoomUserMilestone INITIALIZED: M_last=%d, v_prev=%d, Step=%d"), 
-				RoomUserState.M_last, RoomUserState.v_prev, Step);
+			UE_LOG(LogTemp, Log, TEXT("[EventQueue] RoomUserMilestone INITIALIZED: M_last=%d, M_last_committed=%d, v_prev=%d, Step=%d"), 
+				RoomUserState.M_last, RoomUserState.M_last_committed, RoomUserState.v_prev, Step);
 		// NO emitir evento, solo inicializar baseline
 		goto SkipMilestoneEmission;
 	}
@@ -203,8 +227,20 @@ void UTikStudioEventQueue::EnqueueRoomUserEvent(const FTSE_RoomUserIn& Data)
 			goto SkipMilestoneEmission;
 		}
 		
-		// CASO 3: Cambió de banda → evaluar si está en banda protegida
-		const bool bDireccionAsc = (M_current > RoomUserState.M_last);		if (EstaEnBandaProtegida(v_clamped, MonotonicNow))
+		// CASO 3: Cambió de banda → evaluar protecciones antes de emitir
+		const bool bDireccionAsc = (M_current > RoomUserState.M_last);
+
+		// Capa 1 — Histéresis estructural (geometría de banda, independiente de τ)
+		if (ShouldSuppressDescentHysteresis(v_clamped, M_current, RoomUserState.M_last))
+		{
+			RoomUserState.v_prev = v_clamped;
+			UE_LOG(LogTemp, Verbose, TEXT("[EventQueue] RoomUserMilestone HYSTERESIS: DESC suppressed at boundary (M_curr=%d, M_last=%d, VC=%d)"),
+				M_current, RoomUserState.M_last, v_clamped);
+			goto SkipMilestoneEmission;
+		}
+
+		// Capa 2 — Cooldown temporal (ritmo visual secundario)
+		if (EstaEnBandaProtegida(v_clamped, MonotonicNow))
 		{
 			RoomUserState.v_prev = v_clamped;
 			UE_LOG(LogTemp, Verbose, TEXT("[EventQueue] RoomUserMilestone BLOCKED: Cooldown active (M_curr=%d, M_last=%d, VC=%d)"), 
@@ -228,9 +264,7 @@ void UTikStudioEventQueue::EnqueueRoomUserEvent(const FTSE_RoomUserIn& Data)
 			MilestoneEvent.GroupKey = RoomUserMilestone;
 			MilestoneEvent.Timestamp = Now;
 			MilestoneEvent.Milestone = MilestoneAReportar;
-			// ✅ FIX: Calcular PreviousMilestone siempre desde M_last_committed actual
-			const int32 PreviousMilestoneRaw = RoomUserState.M_last_committed;
-			MilestoneEvent.PreviousMilestone = FMath::Max(PreviousMilestoneRaw, Step); // Clamp para no mostrar 0
+			MilestoneEvent.PreviousMilestone = RoomUserState.M_last_committed;
 			MilestoneEvent.EmissionCount = NuevoCount;
 			MilestoneEvent.ViewerCount = v_n; // VC raw original
 			MilestoneEvent.bIsAscending = bDireccionAsc;
@@ -247,6 +281,14 @@ void UTikStudioEventQueue::EnqueueRoomUserEvent(const FTSE_RoomUserIn& Data)
 					{
 						Queue[i] = MilestoneEvent;
 						bReplaced = true;
+						Queue.Sort([](const FQueuedTikTokEvent& A, const FQueuedTikTokEvent& B)
+						{
+							if (A.PriorityScore != B.PriorityScore)
+							{
+								return A.PriorityScore > B.PriorityScore;
+							}
+							return A.Timestamp < B.Timestamp;
+						});
 						UE_LOG(LogTemp, Log, TEXT("[EventQueue] RoomUserMilestone REPLACED: M=%d %s (prev=%d, count=%d) VC=%d [COOLDOWN_BAND]"), 
 							MilestoneAReportar, bDireccionAsc ? TEXT("ASC") : TEXT("DESC"), MilestoneEvent.PreviousMilestone, NuevoCount, v_n);
 						break;

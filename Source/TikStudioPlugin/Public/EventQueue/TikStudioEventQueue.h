@@ -770,6 +770,9 @@ private:
 	/** Aplica política de adyacencia: conserva cooldowns ≤N pasos, elimina lejanos */
 	void AplicarPoliticaAdyacencia(int32 MilestoneRef);
 
+	/** Capa 1 (histéresis estructural): suprime DESC en colchón geométrico de frontera (no depende de τ). */
+	bool ShouldSuppressDescentHysteresis(int32 Valor, int32 M_current, int32 M_last) const;
+
 	// --- Métricas de evicción competitiva (opcional)
 	TMap<FName, int32> EvictionsByType;
 	// --- Métricas: evicciones/reemplazos evitados por protección de snapshots
