@@ -1,0 +1,56 @@
+# Unreal Engine build artifacts
+Binaries/
+Intermediate/
+Saved/
+DerivedDataCache/
+Build/
+
+# Compiled / binary
+*.dll
+*.exe
+*.pdb
+*.lib
+*.exp
+*.obj
+*.o
+*.a
+*.so
+*.dylib
+*.ipa
+*.apk
+*.aab
+
+# Visual Studio / IDE
+.vs/
+.idea/
+*.sln
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.VC.opendb
+.vscode/
+
+# Cursor / local tooling
+.codegraph/
+logs.md
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+ehthumbs.db
+
+# Unreal generated / temp
+*.log
+*.tmp
+*.temp
+*.xcodeproj
+*.xcworkspace
+*.xcuserdata

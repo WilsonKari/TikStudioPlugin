@@ -1,0 +1,28 @@
+{
+	"FileVersion": 3,
+	"Version": 2,
+	"VersionName": "2.0",
+	"FriendlyName": "TikStudioPlugin",
+	"Description": "TikTok event processing, prioritized EventQueue, and AI Director for Unreal Engine. Requires TikFinityPlugin.",
+	"Category": "Other",
+	"CreatedBy": "Wilson Kari",
+	"CreatedByURL": "",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"EngineVersion": "5.7.0",
+	"CanContainContent": true,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "TikStudioPlugin",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	],
+	"Plugins": [
+		{ "Name": "TikFinityPlugin", "Enabled": true }
+	]
+}
