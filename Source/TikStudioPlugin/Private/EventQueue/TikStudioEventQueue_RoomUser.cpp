@@ -228,8 +228,6 @@ void UTikStudioEventQueue::EnqueueRoomUserEvent(const FTSE_RoomUserIn& Data)
 		}
 		
 		// CASO 3: Cambió de banda → evaluar protecciones antes de emitir
-		const bool bDireccionAsc = (M_current > RoomUserState.M_last);
-
 		// Capa 1 — Histéresis estructural (geometría de banda, independiente de τ)
 		if (ShouldSuppressDescentHysteresis(v_clamped, M_current, RoomUserState.M_last))
 		{
@@ -267,7 +265,8 @@ void UTikStudioEventQueue::EnqueueRoomUserEvent(const FTSE_RoomUserIn& Data)
 			MilestoneEvent.PreviousMilestone = RoomUserState.M_last_committed;
 			MilestoneEvent.EmissionCount = NuevoCount;
 			MilestoneEvent.ViewerCount = v_n; // VC raw original
-			MilestoneEvent.bIsAscending = bDireccionAsc;
+			// Dirección macro respecto al último hito confirmado por la UI (no M_last volátil)
+			MilestoneEvent.bIsAscending = (M_current > RoomUserState.M_last_committed);
 			MilestoneEvent.TTLSeconds = GetTTLForType(RoomUserMilestone);
 			MilestoneEvent.PriorityScore = ComputePriority(MilestoneEvent);
 			
@@ -290,7 +289,7 @@ void UTikStudioEventQueue::EnqueueRoomUserEvent(const FTSE_RoomUserIn& Data)
 							return A.Timestamp < B.Timestamp;
 						});
 						UE_LOG(LogTemp, Log, TEXT("[EventQueue] RoomUserMilestone REPLACED: M=%d %s (prev=%d, count=%d) VC=%d [COOLDOWN_BAND]"), 
-							MilestoneAReportar, bDireccionAsc ? TEXT("ASC") : TEXT("DESC"), MilestoneEvent.PreviousMilestone, NuevoCount, v_n);
+							MilestoneAReportar, MilestoneEvent.bIsAscending ? TEXT("ASC") : TEXT("DESC"), MilestoneEvent.PreviousMilestone, NuevoCount, v_n);
 						break;
 					}
 				}
@@ -307,7 +306,7 @@ void UTikStudioEventQueue::EnqueueRoomUserEvent(const FTSE_RoomUserIn& Data)
 				// Primera emisión, encolar nuevo
 				Queue.Add(MilestoneEvent);
 				UE_LOG(LogTemp, Log, TEXT("[EventQueue] RoomUserMilestone EMIT: M=%d %s (prev=%d, count=%d) VC=%d [COOLDOWN_BAND]"), 
-					MilestoneAReportar, bDireccionAsc ? TEXT("ASC") : TEXT("DESC"), MilestoneEvent.PreviousMilestone, NuevoCount, v_n);
+					MilestoneAReportar, MilestoneEvent.bIsAscending ? TEXT("ASC") : TEXT("DESC"), MilestoneEvent.PreviousMilestone, NuevoCount, v_n);
 			}
 			
 			// Actualizar handle
