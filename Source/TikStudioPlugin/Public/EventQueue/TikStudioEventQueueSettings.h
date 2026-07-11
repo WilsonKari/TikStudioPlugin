@@ -172,9 +172,9 @@ struct TIKSTUDIOPLUGIN_API FRoomUserConfig
     // [RoomUser] Snapshot periódico completo (ViewerCount + TopViewers[])
     UPROPERTY(EditAnywhere, Category = "RoomUser", meta=(ClampMin="1.0", ClampMax="60.0", ToolTip="[RoomUser] Periodo entre snapshots periódicos. Default=6.0s → snapshot cada 6 segundos."))
     float RoomUserSnapshotPeriodSeconds = 20.0f;
-    UPROPERTY(EditAnywhere, Category = "RoomUser", meta=(ClampMin="0", ClampMax="500", ToolTip="[RoomUser Smart Switch] Umbral máximo de ViewerCount para PERMITIR snapshots. Si VC > MaxVC → BLOQUEA snapshot. Default=25."))
+    UPROPERTY(EditAnywhere, Category = "RoomUser", meta=(ClampMin="0", ClampMax="500", ToolTip="[RoomUser Smart Switch] Umbral de concurrencia. VC ≤ MaxVC → snapshots responsivos (período o defer post-lock). VC > MaxVC → compresión temporal estricta vía RoomUserSnapshotPeriodSeconds. Default=25."))
 	int32 RoomUserSmartSwitchMaxVC = 25;
-	UPROPERTY(EditAnywhere, Category = "RoomUser", meta=(ToolTip="[RoomUser Smart Switch] Habilita el interruptor inteligente. Si true → bloquea snapshots cuando VC > MaxVC. Si false → ignora umbral. Default=false."))
+	UPROPERTY(EditAnywhere, Category = "RoomUser", meta=(ToolTip="[RoomUser Smart Switch] Habilita el interruptor de concurrencia. Si true → VC > MaxVC activa compresión por período en lugar de emitir en cada pump. Si false → ignora umbral. Default=true."))
     bool bEnableRoomUserSmartSwitch = true;
     
     // [RoomUserTop1Change] Cambio de Top1 gifter

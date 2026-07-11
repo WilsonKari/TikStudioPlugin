@@ -424,8 +424,17 @@ void UTikStudioEventQueue::SweepExpired()
 		// Chequeo del período usando reloj monotónico
 		const bool bPeriodOk = SinceLastSnapshot >= Settings.RoomUserConfig.RoomUserSnapshotPeriodSeconds;
 		
-		// ***NEW***: bypass del período si venimos de un busy
-		if (bPeriodOk || RoomUserState.bForceRoomUserSnapshotOnNextPump)
+		// Smart Switch: umbral de concurrencia — NO descarta el payload.
+		// VC ≤ MaxVC → modo responsivo (período o defer post-lock).
+		// VC > MaxVC → modo compresión (solo RoomUserSnapshotPeriodSeconds).
+		const bool bSmartSwitchEnabled = Settings.RoomUserConfig.bEnableRoomUserSmartSwitch;
+		const bool bHighConcurrency = bSmartSwitchEnabled
+			&& (LatestRoomUserVC > Settings.RoomUserConfig.RoomUserSmartSwitchMaxVC);
+		const bool bSnapshotEligible = bHighConcurrency
+			? bPeriodOk
+			: (bPeriodOk || RoomUserState.bForceRoomUserSnapshotOnNextPump);
+		
+		if (bSnapshotEligible)
 		{
 			// ***COALESCENCIA PERFECTA***: No insertar RoomUser snapshots si RoomUser está locked
 			if (bHasLockedEvent && LockedEventType == RoomUser)
@@ -441,28 +450,18 @@ void UTikStudioEventQueue::SweepExpired()
 			}
 			else
 			{
-				// Proceder normalmente: Smart Switch y emisión de snapshot
-			// Smart Switch: Bloquear snapshot si VC > MaxVC (cuando está habilitado)
-			bool bSmartSwitchBlocked = false;
-			if (Settings.RoomUserConfig.bEnableRoomUserSmartSwitch)
-			{
-				if (LatestRoomUserVC > Settings.RoomUserConfig.RoomUserSmartSwitchMaxVC)
+				if (bHighConcurrency)
 				{
-					bSmartSwitchBlocked = true;
-					UE_LOG(LogTemp, Log, TEXT("[RoomUser] SmartSwitch: BLOCKED (VC=%d > MaxVC=%d)"), 
+					UE_LOG(LogTemp, Log, TEXT("[RoomUser] SmartSwitch: COMPRESSION (VC=%d > MaxVC=%d, period=%.1fs) — emitting throttled snapshot"),
+						LatestRoomUserVC, Settings.RoomUserConfig.RoomUserSmartSwitchMaxVC,
+						Settings.RoomUserConfig.RoomUserSnapshotPeriodSeconds);
+				}
+				else if (bSmartSwitchEnabled)
+				{
+					UE_LOG(LogTemp, VeryVerbose, TEXT("[RoomUser] SmartSwitch: RESPONSIVE (VC=%d ≤ MaxVC=%d) — emitting snapshot"),
 						LatestRoomUserVC, Settings.RoomUserConfig.RoomUserSmartSwitchMaxVC);
 				}
-				else
-				{
-					UE_LOG(LogTemp, VeryVerbose, TEXT("[RoomUser] SmartSwitch: ALLOW (VC=%d ≤ MaxVC=%d) — period OK"), 
-						LatestRoomUserVC, Settings.RoomUserConfig.RoomUserSmartSwitchMaxVC);
-				}
-			}
 			
-			// Solo proceder si el Smart Switch no está bloqueando
-			const bool bCanEmitSnapshot = !bSmartSwitchBlocked;
-			
-			if (bCanEmitSnapshot)
 			{
 				// Construir nuevo snapshot (siempre con nuevo Id, Timestamp, TTL, PriorityScore)
 				FQueuedTikTokEvent Snapshot;
@@ -546,6 +545,12 @@ void UTikStudioEventQueue::SweepExpired()
 				WantsPumpAfter = true;
 			}
 			} // Cerrar el bloque else de coalescencia perfecta
+		}
+		else if (bHighConcurrency)
+		{
+			UE_LOG(LogTemp, VeryVerbose, TEXT("[RoomUser] SmartSwitch: COMPRESSION waiting (VC=%d > MaxVC=%d, elapsed=%.1fs / %.1fs)"),
+				LatestRoomUserVC, Settings.RoomUserConfig.RoomUserSmartSwitchMaxVC,
+				SinceLastSnapshot, Settings.RoomUserConfig.RoomUserSnapshotPeriodSeconds);
 		}
 	}
 
