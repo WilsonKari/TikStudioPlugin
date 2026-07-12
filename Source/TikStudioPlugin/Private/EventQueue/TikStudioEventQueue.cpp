@@ -794,6 +794,7 @@ bool UTikStudioEventQueue::DispatchLockedEvent()
 		OutData.GiftName = CachedEvent.GiftName;
 		OutData.GiftPictureUrl = CachedEvent.GiftPictureUrl;
 		OutData.DiamondCount = CachedEvent.DiamondCount;
+		OutData.RepeatCount = CachedEvent.RepeatCount;
 		OutData.GiftType = CachedEvent.GiftType;
 		OutData.Describe = CachedEvent.Describe;
 

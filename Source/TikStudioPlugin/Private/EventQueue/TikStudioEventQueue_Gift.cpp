@@ -48,7 +48,7 @@ void UTikStudioEventQueue::EnqueueGiftEvent(const FTSE_GiftIn& Data)
 	E.TTLSeconds = GetTTLForType(E.EventType);
 	E.PriorityScore = ComputePriority(E);
 
-	UE_LOG(LogTemp, Log, TEXT("[EventQueue] Enqueue Gift Id=%s GroupId=%s Repeat=%d Diamonds=%d"), *E.Id.ToString(), *E.GroupId, E.RepeatCount, E.DiamondCount);
+	UE_LOG(LogTemp, Log, TEXT("[EventQueue] Enqueue Gift Id=%s GroupId=%s RepeatCount=%d Diamonds=%d"), *E.Id.ToString(), *E.GroupId, E.RepeatCount, E.DiamondCount);
 
 	// Determine if this gift is a combo gift (requires tracking)
 	const bool bIsComboGift = (Data.GiftType == 1 && !Data.GroupId.IsEmpty());
